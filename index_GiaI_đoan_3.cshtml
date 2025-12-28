@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Graph Visualization – Discrete Structure</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: "Times New Roman", serif;
+    background: #f5f5f5;
+}
+header {
+    background: #c62828;
+    color: white;
+    text-align: center;
+    padding: 20px;
+    font-size: 26px;
+    font-weight: bold;
+}
+.container {
+    display: flex;
+    padding: 15px;
+}
+aside {
+    width: 30%;
+    background: #eee;
+    padding: 15px;
+}
+main {
+    width: 70%;
+    background: white;
+    padding: 15px;
+}
+canvas {
+    border: 1px solid black;
+}
+button {
+    margin: 4px 0;
+    width: 100%;
+}
+select, input {
+    width: 100%;
+    margin-bottom: 8px;
+}
+pre {
+    background: #fff;
+    padding: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<header>FINAL EXAM – DISCRETE STRUCTURE</header>
+
+<div class="container">
+<aside>
+<h3>Controls</h3>
+
+<button onclick="addNode()">Add Node</button>
+<button onclick="removeNode()">Remove Node</button>
+
+<button onclick="addEdge()">Add Edge</button>
+<button onclick="removeEdge()">Remove Edge</button>
+
+<label>Weight</label>
+<input type="number" id="weight" value="1">
+
+<label>Direction</label>
+<select id="direction">
+    <option value="u">Undirected</option>
+    <option value="d">Directed</option>
+</select>
+
+<label>View Representation</label>
+<select onchange="updateView(this.value)">
+    <option value="list">Adjacency List</option>
+    <option value="matrix">Adjacency Matrix</option>
+    <option value="edge">Edge List</option>
+</select>
+
+<pre id="output">Empty</pre>
+</aside>
+
+<main>
+<canvas id="canvas" width="900" height="500"></canvas>
+</main>
+</div>
+
+<script>
+let graph = {
+    nodes: [],
+    edges: []
+};
+
+let selectedNode = null;
+let tempEdgeStart = null;
+let draggingNode = null;
+let visited = new Set();
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function addNode(){
+    let id = graph.nodes.length + 1;
+    graph.nodes.push({id, x:100+id*60, y:250});
+    draw();
+}
+
+function removeNode(){
+    if(graph.nodes.length === 0) return alert("No node left");
+    let n = graph.nodes.pop();
+    graph.edges = graph.edges.filter(e=>e.from!==n.id && e.to!==n.id);
+    draw();
+}
+
+function addEdge(){
+    if(selectedNode === null) return alert("Select node first");
+
+    if(tempEdgeStart === null){
+        tempEdgeStart = selectedNode;
+        return;
+    }
+
+    let w = parseInt(document.getElementById("weight").value);
+    let d = document.getElementById("direction").value;
+
+    graph.edges.push({
+        from: tempEdgeStart,
+        to: selectedNode,
+        weight: w,
+        directed: d
+    });
+
+    tempEdgeStart = null;
+    draw();
+}
+
+function removeEdge(){
+    if(graph.edges.length === 0) return alert("No edge");
+    graph.edges.pop();
+    draw();
+}
+
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // edges
+    graph.edges.forEach(e=>{
+        let a = graph.nodes.find(n=>n.id===e.from);
+        let b = graph.nodes.find(n=>n.id===e.to);
+        if(!a||!b) return;
+
+        ctx.beginPath();
+        ctx.moveTo(a.x,a.y);
+        ctx.lineTo(b.x,b.y);
+        ctx.stroke();
+
+        ctx.fillText(e.weight,(a.x+b.x)/2,(a.y+b.y)/2);
+
+        if(e.directed==="d"){
+            let ang = Math.atan2(b.y-a.y,b.x-a.x);
+            let x = b.x-10*Math.cos(ang);
+            let y = b.y-10*Math.sin(ang);
+            ctx.beginPath();
+            ctx.moveTo(x,y);
+            ctx.lineTo(x-5*Math.cos(ang-Math.PI/6),y-5*Math.sin(ang-Math.PI/6));
+            ctx.lineTo(x-5*Math.cos(ang+Math.PI/6),y-5*Math.sin(ang+Math.PI/6));
+            ctx.fill();
+        }
+    });
+
+    // nodes
+    graph.nodes.forEach(n=>{
+        ctx.beginPath();
+        ctx.arc(n.x,n.y,20,0,2*Math.PI);
+        ctx.fillStyle = visited.has(n.id) ? "#ff9800" : "#4caf50";
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle="white";
+        ctx.fillText(n.id,n.x-5,n.y+5);
+    });
+
+    updateView(document.querySelector("select").value);
+}
+
+function adjacencyList(){
+    let a={};
+    graph.nodes.forEach(n=>a[n.id]=[]);
+    graph.edges.forEach(e=>{
+        a[e.from].push(e.to+"("+e.weight+")");
+        if(e.directed==="u")
+            a[e.to].push(e.from+"("+e.weight+")");
+    });
+    return Object.entries(a).map(([k,v])=>k+": "+v.join(", ")).join("\n");
+}
+
+function adjacencyMatrix(){
+    let n=graph.nodes.length;
+    let m=Array.from({length:n},()=>Array(n).fill(0));
+    graph.edges.forEach(e=>{
+        m[e.from-1][e.to-1]=e.weight;
+        if(e.directed==="u")
+            m[e.to-1][e.from-1]=e.weight;
+    });
+    return m.map(r=>r.join(" ")).join("\n");
+}
+
+function edgeList(){
+    return graph.edges.map(e=>`${e.from} -> ${e.to} (${e.weight})`).join("\n");
+}
+
+function updateView(type){
+    let out="";
+    if(type==="list") out=adjacencyList();
+    if(type==="matrix") out=adjacencyMatrix();
+    if(type==="edge") out=edgeList();
+    document.getElementById("output").textContent = out;
+}
+
+canvas.addEventListener("mousedown",e=>{
+    let r=canvas.getBoundingClientRect();
+    let x=e.clientX-r.left;
+    let y=e.clientY-r.top;
+
+    graph.nodes.forEach(n=>{
+        let dx=n.x-x, dy=n.y-y;
+        if(Math.sqrt(dx*dx+dy*dy)<=20){
+            draggingNode=n;
+            selectedNode=n.id;
+        }
+    });
+});
+
+canvas.addEventListener("mousemove",e=>{
+    if(draggingNode){
+        let r=canvas.getBoundingClientRect();
+        draggingNode.x=e.clientX-r.left;
+        draggingNode.y=e.clientY-r.top;
+        draw();
+    }
+});
+
+canvas.addEventListener("mouseup",()=>{
+    draggingNode=null;
+});
+</script>
+
+</body>
+</html>
